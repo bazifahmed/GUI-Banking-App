@@ -9,10 +9,7 @@ Automatic Account Generation - 10-digit unique account numbers
 
 Secure Login - Account number + password authentication
 
-Core Banking Functions:
-  Check Balance 
-  Deposit Money 
-  Withdraw Money
+Core Banking Functions:  Check Balance,  Deposit Money,  Withdraw Money
 
 User Dashboard - Personalized top bar showing "Name/Student ID"
 
