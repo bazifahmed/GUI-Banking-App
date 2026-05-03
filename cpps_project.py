@@ -122,7 +122,7 @@ class BankApp:
     def _divider(self, parent, pady=0):
         tk.Frame(parent, bg=self.BORDER, height=1).pack(fill="x", pady=pady)
 
-    def _entry(self, parent, show=None):
+    def _entry(self, parent, show=None, placeholder=None):
         """A styled entry with an underline-only border feel."""
         container = tk.Frame(parent, bg="#1c2128", highlightbackground=self.BORDER,
                               highlightthickness=1)
@@ -134,13 +134,38 @@ class BankApp:
                      show=show or "")
         e.pack(fill="x", padx=10, pady=8)
 
-        def on_focus_in(_):
-            container.configure(highlightbackground=self.GOLD)
-        def on_focus_out(_):
-            container.configure(highlightbackground=self.BORDER)
+        # Placeholder support
+        _show_char = show or ""
+        if placeholder:
+            e.insert(0, placeholder)
+            e.configure(fg=self.TEXT_DIM, show="")
+
+            def on_focus_in(_):
+                container.configure(highlightbackground=self.GOLD)
+                if e.get() == placeholder:
+                    e.delete(0, "end")
+                    e.configure(fg=self.TEXT_HI, show=_show_char)
+
+            def on_focus_out(_):
+                container.configure(highlightbackground=self.BORDER)
+                if e.get() == "":
+                    e.configure(fg=self.TEXT_DIM, show="")
+                    e.insert(0, placeholder)
+        else:
+            def on_focus_in(_):
+                container.configure(highlightbackground=self.GOLD)
+            def on_focus_out(_):
+                container.configure(highlightbackground=self.BORDER)
 
         e.bind("<FocusIn>",  on_focus_in)
         e.bind("<FocusOut>", on_focus_out)
+
+        # Helper to get only real (non-placeholder) value
+        def get_real():
+            val = e.get()
+            return "" if val == placeholder else val
+        e.get_real = get_real
+
         return container, e
 
     def _label(self, parent, text, font=None, fg=None, bg=None, anchor="w"):
@@ -284,28 +309,47 @@ class BankApp:
 
         fields = {}
 
-        def field(label, show=None):
+        PLACEHOLDERS = {
+            "name":     "John Doe",
+            "sid":      "202xx-12345",
+            "password": None,
+        }
+
+        def field(label, key, show=None):
             tk.Label(card_inner, text=label,
                      font=self.FONT_LBL, fg=self.TEXT_MID, bg=self.PANEL,
                      anchor="w").pack(fill="x", pady=(10, 2))
-            cont, ent = self._entry(card_inner, show=show)
+            cont, ent = self._entry(card_inner, show=show, placeholder=PLACEHOLDERS[key])
             cont.configure(highlightbackground=self.BORDER)
             cont.pack(fill="x")
             return ent
 
-        fields["name"]     = field("FULL NAME")
-        fields["sid"]      = field("STUDENT ID")
-        fields["password"] = field("PASSWORD", show="•")
+        fields["name"]     = field("FULL NAME",   "name")
+        fields["sid"]      = field("STUDENT ID",  "sid")
+        fields["password"] = field("PASSWORD",    "password", show="•")
 
         self._divider(card_inner, pady=16)
 
+        def _get(key):
+            e = fields[key]
+            return e.get_real().strip() if hasattr(e, "get_real") else e.get().strip()
+
         def do_create():
-            n, s, p = (fields["name"].get().strip(),
-                       fields["sid"].get().strip(),
-                       fields["password"].get().strip())
+            n, s, p = _get("name"), _get("sid"), _get("password")
             if not all([n, s, p]):
                 messagebox.showerror("Missing Fields", "Please fill in all fields.", parent=self.root)
                 return
+
+            # Duplicate Student ID check
+            existing_sids = {acc.student_id for acc in self.accounts.values()}
+            if s in existing_sids:
+                messagebox.showerror(
+                    "Student ID Already Registered",
+                    f"An account with Student ID  '{s}'  already exists.\n"
+                    "Each student may only hold one account.",
+                    parent=self.root)
+                return
+
             acc_no = self._generate_account_number()
             self.accounts[acc_no] = Account(acc_no, n, s, p)
             messagebox.showinfo(
